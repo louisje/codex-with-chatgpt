@@ -1,5 +1,9 @@
 # Codex with ChatGPT
 
+**Secure MCP Tunnel preview:** an opt-in `tunnel-client` + stdio path is now
+available. See [setup and migration status](docs/secure-mcp-tunnel.md). This path
+requires a tunnel runtime API key; the legacy Cloudflare flow below is unchanged.
+
 > ChatGPT thinks. Codex works.
 > ChatGPT 负责思考，Codex 负责干活。
 

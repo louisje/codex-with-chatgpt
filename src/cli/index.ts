@@ -59,8 +59,10 @@ import {
 import { appendExecutionRecord } from "../execution/records.js";
 import { saveExecutionOutput } from "../execution/output.js";
 import { importMediaAsset } from "../media/import.js";
+import { registerMcpCommands } from "../mcp/commands.js";
 
 const program = new Command();
+registerMcpCommands(program);
 
 const say = (msg: string): void => {
   process.stdout.write(msg + "\n");
