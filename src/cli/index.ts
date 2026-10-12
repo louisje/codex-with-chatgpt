@@ -46,6 +46,7 @@ import {
 import { PRODUCT_NAME, VERSION } from "../version.js";
 import {
   clearChatPointer,
+  adoptConversation,
   mergeSession,
   readSession,
   resolveConversation,
@@ -953,6 +954,24 @@ session
         );
       }
     }
+  });
+
+session
+  .command("adopt")
+  .description("Bind an existing ChatGPT conversation after verifying workspace_info in that chat")
+  .requiredOption("--url <url>", "existing private ChatGPT conversation URL")
+  .requiredOption("--verified-workspace-id <id>", "workspace ID returned by ChatGPT workspace_info")
+  .option("-w, --workspace <path>")
+  .option("--project-url <url>", "optional existing ChatGPT Project home URL")
+  .option("--replace", "replace a different saved conversation after explicit approval", false)
+  .option("--json", "machine-readable output", false)
+  .action((opts: { url: string; verifiedWorkspaceId: string; workspace?: string; projectUrl?: string; replace: boolean; json: boolean }) => {
+    try {
+      const workspace = new Workspace(resolveWorkspace(opts.workspace));
+      const saved = adoptConversation(workspace.id, opts);
+      if (opts.json) say(JSON.stringify({ ok: true, workspaceId: workspace.id, session: saved, conversation: resolveConversation(saved) }));
+      else check(`已綁定既有 ChatGPT 對話：${saved.url}`);
+    } catch (error) { handleCliError(error, opts.json); }
   });
 
 // ---------------------------------------------------------------- generated media handoff

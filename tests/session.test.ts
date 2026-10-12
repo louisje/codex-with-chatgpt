@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clearChatPointer,
+  adoptConversation,
+  normalizeChatUrl,
   mergeSession,
   normalizeProjectUrl,
   projectIdFromUrl,
@@ -229,5 +231,51 @@ describe("clearChatPointer", () => {
     });
     expect(clearChatPointer("def456def456")).toEqual({ cleared: true, keptProject: false });
     expect(readSession("def456def456")).toBeNull();
+  });
+});
+
+
+describe("ChatGPT-first conversation adoption", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs) cleanup(dir);
+    dirs.length = 0;
+    delete process.env.C2C_STATE_DIR;
+  });
+  function isolate(): void {
+    const dir = makeTmpDir("chatgpt-adopt");
+    dirs.push(dir);
+    process.env.C2C_STATE_DIR = dir;
+  }
+  const chat = "https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc";
+  const other = "https://chatgpt.com/c/abcdefab-1234-1234-1234-123456789abc";
+  it("normalizes private chat URL but rejects share URLs, hosts and schemes", () => {
+    expect(normalizeChatUrl(`${chat}?utm_source=foo`)).toBe(chat);
+    expect(normalizeChatUrl("https://www.chatgpt.com/g/g-p-abc123/c/12345678-1234-1234-1234-123456789abc")).toBe("https://chatgpt.com/g/g-p-abc123/c/12345678-1234-1234-1234-123456789abc");
+    for (const url of ["https://chatgpt.com/share/abcdef", "https://example.com/c/12345678-1234-1234-1234-123456789abc", "http://chatgpt.com/c/12345678-1234-1234-1234-123456789abc", PROJECT]) {
+      expect(normalizeChatUrl(url)).toBeNull();
+    }
+  });
+  it("binds a verified existing chat and refuses wrong workspace identity", () => {
+    isolate();
+    expect(() => adoptConversation("ws01", { url: chat, verifiedWorkspaceId: "ws02" })).toThrow(/identity/);
+    expect(readSession("ws01")).toBeNull();
+    const saved = adoptConversation("ws01", { url: `${chat}?source=foo`, verifiedWorkspaceId: "ws01" });
+    expect(saved.url).toBe(chat);
+    expect(resolveConversation(saved)).toMatchObject({ mode: "long-chat", reuseSavedChat: true, chatUrl: chat });
+  });
+  it("does not replace an existing chat unless explicitly allowed", () => {
+    isolate();
+    adoptConversation("ws01", { url: chat, verifiedWorkspaceId: "ws01" });
+    expect(() => adoptConversation("ws01", { url: other, verifiedWorkspaceId: "ws01" })).toThrow(/--replace/);
+    expect(readSession("ws01")?.url).toBe(chat);
+    expect(adoptConversation("ws01", { url: other, verifiedWorkspaceId: "ws01", replace: true }).url).toBe(other);
+  });
+  it("preserves an existing Project when re-adopting the same conversation", () => {
+    isolate();
+    adoptConversation("ws01", { url: chat, verifiedWorkspaceId: "ws01", projectUrl: PROJECT });
+    const saved = adoptConversation("ws01", { url: chat, verifiedWorkspaceId: "ws01" });
+    expect(saved.conversationMode).toBe("project");
+    expect(saved.projectUrl).toBe(PROJECT);
   });
 });

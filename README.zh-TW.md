@@ -61,6 +61,22 @@ node bin/c2c.js doctor -w /absolute/path/to/workspace --no-fix --json
 
 > **安裝範圍：** 這個 repository 提供 C2C CLI、Codex Skill 與唯讀 MCP Server；它不會在 ChatGPT 裡建立一個新的模型，也不會自動替你建立 OpenAI API 金鑰。既有 Legacy 安裝仍可使用 `c2c setup` 設定 Cloudflare 與 OAuth 連接器。
 
+## 從既有 ChatGPT 對話交接給 Codex
+
+若你已經在 ChatGPT 某段對話中討論了需求，現在想請 Codex 直接接手實作，請將**原本的私人對話網址**提供給 Codex，並說「使用 Codex with ChatGPT 接續這段既有對話」。Codex 依 Skill 的 **ChatGPT-first Handoff** 步驟開啟該對話、在同一段對話裡驗證 `workspace_info`，成功後才儲存對話綁定。
+
+在完成 ChatGPT 端驗證後，Codex 可以執行：
+
+```bash
+node bin/c2c.js session adopt -w /path/to/workspace \
+  --url 'https://chatgpt.com/c/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' \
+  --verified-workspace-id WORKSPACE_ID --json
+```
+
+若原對話隸屬 ChatGPT Project，可加上 `--project-url`。原有不同對話已綁定時，指令會拒絕覆寫；確認要替換時才使用 `--replace`。分享連結（`/share/`）不能當作私人對話使用。
+
+**限制：** CLI 可以綁定網址與檢查 workspace ID，但無法自行讀取 ChatGPT 完整歷史或代替瀏覽器呼叫 Connector。接續時仍由 Codex 的瀏覽器 Agent 開啟原對話，確認內容並操作；這不是將整份 ChatGPT 歷史直接匯入 Codex 的本地記憶。
+
 ## 在不同 Workspace 之間切換
 
 Secure MCP Tunnel 只使用一個共用 Connector，因此必須先停止原工作區，再啟動另一個：

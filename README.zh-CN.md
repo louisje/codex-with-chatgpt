@@ -37,6 +37,15 @@ Agent（Codex），然后去倒杯咖啡：
 **更新**：Skill 每天自动检查一次 GitHub，有新版本会自动更新并继续任务，
 无需任何操作；也可以随时对 Codex 说"更新 Codex with ChatGPT"。
 
+## 从已有 ChatGPT 对话交接给 Codex
+
+可以先在 ChatGPT 中讨论需求，需要修改代码时，再把该**私人对话网址**交给
+Codex，并让其执行 Skill 中的 **ChatGPT-first Handoff**。Agent 会打开原对话、
+调用 Connector 的 `workspace_info` 验证工作区，然后通过
+`c2c session adopt -w <workspace> --url <chat-url> --verified-workspace-id <id>`
+保存绑定。不使用 `/share/` 分享链接，也不会未经确认覆盖已有会话。
+这不是将 ChatGPT 的完整历史导入 Codex；必须由浏览器 Agent 继续访问原对话。
+
 ## 安装 → 配置 → 使用（手动版）
 
 设 `<codex-home>` 为：如果 `CODEX_HOME` 已设置且非空，则使用 `CODEX_HOME`；

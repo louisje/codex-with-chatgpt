@@ -282,3 +282,47 @@ export function clearChatPointer(workspaceId: string): { cleared: boolean; keptP
   fs.rmSync(sessionFile(workspaceId), { force: true });
   return { cleared: true, keptProject: false };
 }
+
+/** Accept only full, private ChatGPT conversation URLs (never shared-link URLs). */
+export function normalizeChatUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || !["chatgpt.com", "www.chatgpt.com"].includes(url.hostname)) return null;
+    // ChatGPT may place a conversation inside a Project in the URL.
+    if (!/^\/(?:c\/[0-9a-fA-F-]{16,}|g\/g-p-[a-zA-Z0-9]+\/c\/[0-9a-fA-F-]{16,})\/?$/.test(url.pathname)) return null;
+    return `https://chatgpt.com${url.pathname.replace(/\/$/, "")}`;
+  } catch { return null; }
+}
+
+/** Persist a verified ChatGPT-first conversation without silently replacing prior binding. */
+export function adoptConversation(workspaceId: string, input: {
+  url: string;
+  verifiedWorkspaceId: string;
+  projectUrl?: string;
+  replace?: boolean;
+}): SavedSession {
+  const url = normalizeChatUrl(input.url);
+  if (!url) throw new Error("Use a private ChatGPT conversation URL, not a shared link or Project home URL.");
+  if (input.verifiedWorkspaceId !== workspaceId) throw new Error("ChatGPT workspace_info identity does not match this workspace.");
+  const projectUrl = input.projectUrl ? normalizeProjectUrl(input.projectUrl) : null;
+  if (input.projectUrl && !projectUrl) throw new Error("Invalid ChatGPT Project URL.");
+  const previous = readSession(workspaceId);
+  if (previous?.url && previous.url !== url && !input.replace) {
+    throw new Error("A different conversation is already bound; use --replace only after explicit approval.");
+  }
+  if (previous?.projectUrl && projectUrl && previous.projectUrl !== projectUrl && !input.replace) {
+    throw new Error("A different ChatGPT Project is already bound; use --replace only after explicit approval.");
+  }
+  // Preserve a verified existing Project binding when re-adopting the same URL.
+  // A different conversation must supply its Project URL explicitly, or use long-chat.
+  const same = previous?.url === url;
+  const effectiveProjectUrl = projectUrl ?? (same ? previous?.projectUrl : undefined);
+  const mode: ConversationMode = effectiveProjectUrl ? "project" : "long-chat";
+  const saved = mergeSession(same ? previous : null, {
+    url,
+    conversationMode: mode,
+    projectUrl: effectiveProjectUrl,
+    connectorName: same ? previous?.connectorName : undefined,
+  });
+  return writeSession(workspaceId, saved);
+}

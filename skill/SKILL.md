@@ -471,6 +471,53 @@ next action:
    verification then hits the same explicit failure twice, stop and report the
    exact failed step; do not loop indefinitely and do not continue without C2C.
 
+## ChatGPT-first Handoff (adopt an existing conversation)
+
+When a user has already discussed requirements in **an existing ChatGPT chat**
+and wants Codex to execute from there, **DO NOT** create a new chat, Project,
+Connector or use the normal first-time ChatGPT conversation creation flow.
+Ask for the exact private chat URL if it is not already available. A share link
+(`chatgpt.com/share/...`) is NOT a private conversation and cannot be adopted.
+
+1. Identify the current local workspace and transport. In Secure MCP Tunnel
+   mode, run `c2c start -w <workspace> --json` and
+   `c2c doctor -w <workspace> --no-fix --json`. If another workspace owns
+   the shared Tunnel, get explicit permission before stopping it; never stop
+   `terminal-mcp` or an unrelated profile. Legacy mode uses its own doctor.
+2. With the established ChatGPT browser tooling, **open the given chat URL
+   directly** in the same in-app browser context. Do not navigate to the
+   homepage or Project collection and create a new conversation. Do not
+   rename, delete, relocate or overwrite the existing chat. If the browser
+   cannot access it, explain the failure and leave the saved session unchanged.
+3. Inspect the conversation's existing context, decisions, and most recent
+   user goal, without claiming that the Codex process has a full transcript.
+   Introduce C2C in THAT conversation and explicitly invoke the C2C shared
+   connector's `workspace_info` (and a simple read-only file check).
+   **Compare the actual `workspace_info.workspaceId` to the workspace ID
+   reported by `c2c start`**. A local healthy doctor alone is insufficient.
+   If the connector is not available to that conversation, stop and explain;
+   never silently switch to a fresh conversation or another connector.
+4. **Only AFTER the in-chat verification succeeds**, record the chat with:
+   `c2c session adopt -w <workspace> --url <chat-url>
+   --verified-workspace-id <workspace_info.workspaceId> --json`.
+   For a chat that actually belongs to a ChatGPT Project and whose collection
+   URL is known, also pass `--project-url <project-collection-url>`.
+   If a different chat is already bound, stop and seek explicit confirmation
+   before repeating with `--replace`. The CLI validates URLs and workspace
+   identity but **cannot itself inspect ChatGPT conversation history or
+   verify a remote tool call**: the in-browser check is mandatory.
+5. Continue in that same ChatGPT conversation using the existing goal and
+   existing context. Start the normal `[C2C]` INIT / PLAN cycle, with a short
+   adoption note asking ChatGPT to confirm its understanding of the task.
+   Codex owns execution, ChatGPT owns planning/review; do not paste whole
+   files, diffs, logs or chat transcripts. Never send a fabricated HANDOFF
+   summary claiming to know unseen history.
+
+**Conversation rule:** For ChatGPT-first adopted Project chats, the user
+explicitly selected THIS chat. Reuse it in this Codex thread instead of
+applying the normal new-Codex-thread → new-Project-chat default. Opening a
+fresh ChatGPT conversation still requires an explicit user request.
+
 ## Conversation management
 
 `c2c session -w <ws> --json` → `{ session, conversation }`.
@@ -518,6 +565,8 @@ One ChatGPT Project per workspace. Mapping:
 2. Same workspace, a **new** Codex conversation → new ChatGPT chat from the
    collection page (`conversation.projectUrl`). Ignore `session.url` unless
    you already saved it earlier in THIS Codex thread.
+   **Exception:** ChatGPT-first Handoff explicitly adopts an existing chat;
+   it takes precedence over creating a new Project chat.
 3. Different workspace → different Project. Legacy uses different connectors;
    Secure MCP Tunnel reuses the SAME connector, but confirms `workspace_info`
    matches the currently selected workspace before working.

@@ -91,3 +91,23 @@ not merely for the runtime PID lock to appear. If startup does not become ready,
 C2C signals only its own just-spawned wrapper and reports an error. An already
 running instance started with older code may not have a health URL file until
 it is restarted; this change does not forcibly restart existing connections.
+
+## ChatGPT-first conversation adoption
+
+A pre-existing ChatGPT conversation can be reused without recreating the
+shared Tunnel Connector. In the Codex Skill, use **ChatGPT-first Handoff**:
+open the user-provided private chat directly using browser tooling, call
+`workspace_info` in THAT chat, and compare the returned `workspaceId` with
+the local workspace. Only then save the binding:
+
+```bash
+c2c session adopt -w /path/to/workspace \
+  --url https://chatgpt.com/c/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+  --verified-workspace-id WORKSPACE_ID --json
+```
+
+Provide `--project-url` for an existing Project chat; use `--replace` only
+with explicit permission if a different conversation is already saved.
+Share links are rejected. `session adopt` does not itself access ChatGPT or
+read history; remote verification and context review are performed by the
+agent in the actual conversation. No connector needs to be recreated.

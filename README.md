@@ -106,6 +106,25 @@ anytime. / Skill 每天自动检查一次 GitHub，有新版本会自动更新�
 *The sections below are in English. 以下详细内容为英文，中文完整版见
 [README.zh-TW.md](README.zh-TW.md)／[README.zh-CN.md](README.zh-CN.md)。*
 
+## Continue an existing ChatGPT conversation (ChatGPT-first Handoff)
+
+You can start the discussion in ChatGPT and ask Codex to take over execution
+later. Give Codex the **private conversation URL** (not a `/share/` link) and
+ask it to use the **ChatGPT-first Handoff** workflow in `skill/SKILL.md`.
+Codex opens that chat, checks the C2C connector's `workspace_info` there and
+confirms it matches the local workspace. Only after verification does it run:
+
+```bash
+c2c session adopt -w /path/to/workspace \
+  --url https://chatgpt.com/c/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+  --verified-workspace-id WORKSPACE_ID --json
+```
+
+Existing bindings are protected; `--replace` requires explicit user approval.
+For chats inside an existing Project, supply `--project-url` as well. This
+**reuses the conversation**, but does not copy its entire history into the
+local Codex process. The browser agent needs access to the original chat.
+
 ## Install → Setup → Use (manual)
 
 Let `<codex-home>` be a non-empty `CODEX_HOME` when set; otherwise use `~/.codex`
