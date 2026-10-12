@@ -18,6 +18,8 @@ The C2C Bridge gives ChatGPT read-only MCP access to the current workspace, so
 control messages between you and ChatGPT stay tiny (< 1 KB) — ChatGPT pulls
 whatever data it needs by itself.
 
+**Secure MCP Tunnel opt-in:** When `c2c mcp set-tunnel --tunnel-id ...` has been configured on this machine, `c2c start`, `c2c stop` and `c2c doctor` manage the shared OpenAI Tunnel instead of the legacy Cloudflare bridge. The Tunnel ID is configured only once. Before starting in a different workspace, stop the previous workspace with `c2c stop`; C2C refuses to steal a running legacy profile or overwrite an active shared one. After startup, verify `workspace_info` from ChatGPT. Do not use legacy bridge/pairing/Cloudflare repair guidance for the shared tunnel transport. Existing ChatGPT conversation selection remains separate; it is not automatically migrated by this transport change.
+
 **Golden rules**
 
 1. NEVER paste file contents, diffs, or logs into ChatGPT. ChatGPT reads them through MCP.

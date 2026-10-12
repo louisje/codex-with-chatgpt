@@ -60,6 +60,7 @@ import { appendExecutionRecord } from "../execution/records.js";
 import { saveExecutionOutput } from "../execution/output.js";
 import { importMediaAsset } from "../media/import.js";
 import { registerMcpCommands } from "../mcp/commands.js";
+import { configuredTunnelId, sharedStatus, startSharedWorkspace, stopSharedWorkspace } from "../mcp/lifecycle.js";
 
 const program = new Command();
 registerMcpCommands(program);
@@ -260,6 +261,12 @@ program
   .action(async (opts: { workspace?: string; tunnel: boolean; json: boolean }) => {
     const root = resolveWorkspace(opts.workspace);
     try {
+      if (configuredTunnelId()) {
+        const state = await startSharedWorkspace(root);
+        if (opts.json) say(JSON.stringify({ ok: true, transport: "secure-mcp-tunnel", workspaceId: state.workspaceId, running: state.running }));
+        else { check("Workspace 已識別"); check("Secure MCP Tunnel 已啟動"); }
+        return;
+      }
       const { runtime, info, mcpUrl } = await ensureBridgeAndTunnel(root, { tunnel: opts.tunnel });
       const connectorName = mcpUrl
         ? persistWorkspaceEndpoint({
@@ -359,7 +366,13 @@ program
   .description("Stop the bridge for this workspace")
   .option("-w, --workspace <path>")
   .action(async (opts: { workspace?: string }) => {
-    const stopped = await stopBridge(resolveWorkspace(opts.workspace));
+    const root = resolveWorkspace(opts.workspace);
+    if (configuredTunnelId() && sharedStatus().running) {
+      const stoppedShared = await stopSharedWorkspace(root);
+      if (stoppedShared) check("Secure MCP Tunnel 已停止");
+      return;
+    }
+    const stopped = await stopBridge(root);
     if (stopped) check("Bridge 已停止");
     else say("没有正在运行的 Bridge。");
   });
@@ -431,6 +444,17 @@ program
   .option("--json", "machine-readable output", false)
   .action(async (opts: { workspace?: string; fix: boolean; json: boolean }) => {
     const root = resolveWorkspace(opts.workspace);
+    if (configuredTunnelId()) {
+      const state = sharedStatus();
+      const workspace = new Workspace(root);
+      const matching = state.running && state.workspaceId === workspace.id;
+      const report = { tunnel: { ok: matching, detail: state.running ? `active workspace: ${state.workspaceRoot}` : "not running" } };
+      if (opts.json) say(JSON.stringify({ ok: matching, transport: "secure-mcp-tunnel", report }));
+      else if (matching) check("Secure MCP Tunnel 已啟動，workspace 相符");
+      else cross(`Secure MCP Tunnel 未連接目前 workspace（${report.tunnel.detail}）`);
+      if (!matching) process.exitCode = 1;
+      return;
+    }
     const report: Record<string, { ok: boolean; detail?: string }> = {};
     const results: string[] = [];
 

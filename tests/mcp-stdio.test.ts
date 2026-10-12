@@ -114,5 +114,8 @@ describe("workspace tunnel profiles", () => {
     expect(args).not.toContain("--force");
     expect(args[args.indexOf("--mcp-command") + 1]).toContain(quoteCommandArgument(workspace.root));
     expect(() => tunnelInitArgs(workspace, "invalid")).toThrow("Invalid Tunnel ID");
+    const shared = tunnelInitArgs(workspace, "tunnel_example", true);
+    expect(shared[shared.indexOf("--profile") + 1]).toBe("c2c-shared");
+    expect(shared[shared.indexOf("--mcp-command") + 1]).toContain(quoteCommandArgument(workspace.root));
   });
 });

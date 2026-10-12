@@ -48,3 +48,37 @@ automation and the browser Skill still manage the legacy Cloudflare bridge;
 use the `mcp` commands above for this preview. Conversation/Project bindings
 remain independent of transport. Automatic adoption of an existing ChatGPT
 conversation and background tunnel lifecycle management are not included yet.
+
+### Shared Tunnel ID across workspaces (opt-in)
+
+To reuse one ChatGPT connector with different workspaces, stop any running shared runtime first, then select the workspace explicitly:
+
+```sh
+c2c mcp switch --tunnel-id tunnel_YOUR_ID --workspace /path/to/project-a
+c2c mcp doctor --shared
+c2c mcp run --shared
+```
+
+Stop `mcp run --shared` before switching to another workspace, then repeat `switch` and `run` with project B. `switch` refuses while the shared runtime holds its PID lock; `run --shared` refuses a second instance. `workspace_info` must be checked after each switch to confirm the expected workspace ID. The existing per-workspace profiles are unchanged. This does **not** hot-switch an active ChatGPT request; calls made during downtime may fail. Avoid running other profiles with the same Tunnel ID concurrently.
+
+### Managed lifecycle (opt-in)
+
+Once per computer, save a shared Tunnel ID:
+
+```sh
+c2c mcp set-tunnel --tunnel-id tunnel_YOUR_ID
+```
+
+After this, `c2c start` in a workspace automatically configures and starts the shared profile in the background. `c2c doctor` checks whether this workspace owns the running profile; `c2c stop` stops it. To change workspaces, stop the previous workspace first, then `c2c start` in the next one. These commands retain their legacy bridge behavior until a shared Tunnel ID is saved. Existing legacy profile processes are **not** stopped or stolen automatically; an active legacy profile using the same Tunnel ID causes a clear error instead. This prevents takeover of existing ChatGPT connections, but means one-time migration requires explicitly stopping the older process. On Windows, shared-profile process conflict detection is not implemented and automatic activation fails closed.
+
+The process is supervised by a lock under the C2C state directory, with runtime logs in `mcp-tunnels/c2c-shared.log`. An active workspace cannot be switched behind its back. Background startup only confirms the runtime acquired the lock, not that OpenAI has accepted the tunnel or MCP tools can be called; check readiness and `workspace_info` separately.
+
+### Live migration validation (2026-10-12)
+
+An existing C2C-specific legacy profile was explicitly stopped and replaced by
+`c2c-shared` using the same Tunnel ID. The existing ChatGPT connector continued
+to resolve `workspace_info` without re-pairing. A → B → A switching was
+confirmed from ChatGPT itself, not only by local CLI status. A separate running
+`terminal-mcp` tunnel using its own Tunnel ID remained online throughout.
+Starting an unrelated workspace without stopping the active workspace was
+rejected, while re-running `c2c start` for the active workspace was idempotent.
