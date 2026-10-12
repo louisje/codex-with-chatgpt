@@ -1,6 +1,6 @@
 # Codex with ChatGPT
 
-[English](README.md) | **简体中文**
+[English](README.md) | [繁體中文](README.zh-TW.md) | **简体中文**
 
 > ChatGPT 负责思考，Codex 负责干活。
 
@@ -8,12 +8,12 @@
 
 ChatGPT 付费订阅的网页版额度大量闲置，Codex 却在消耗紧张的 API 额度做
 规划和 Review。本项目把"思考"交给你已付费的网页版 ChatGPT，Codex 只负责
-执行。不用 API Key、不搞逆向代理——官方网页 + 只读 MCP 桥接。
+执行。新版 Secure MCP Tunnel 不需要 Cloudflare 反向代理，但 tunnel-client 仍需经过授权的运行凭据；不需要额外购买模型推理 API。
 
 ## 这是什么
 
 把 ChatGPT 网页版变成 Codex 编码会话的"规划与审查大脑"，而执行权完全保留在
-Codex 手里。你的仓库永远不会被上传——ChatGPT 通过一条安全的、OAuth 保护的
+Codex 手里。你的仓库永远不会被上传——ChatGPT 通过一条安全的、OpenAI Tunnel（或旧版 OAuth Bridge）保护的
 **只读** MCP 连接，按需读取当前工作区里它真正需要的那几行代码。
 
 ## 一段话安装（纯小白专用）
@@ -22,25 +22,16 @@ Codex 手里。你的仓库永远不会被上传——ChatGPT 通过一条安全
 Agent（Codex），然后去倒杯咖啡：
 
 ```text
-请帮我完整安装并配置 Codex with ChatGPT，全程自动，我是不懂技术的小白，
-所有事情你自己做：
+请帮我安装并配置 Codex with ChatGPT，优先使用 Secure MCP Tunnel，由你完成所有可自动执行的步骤：
 
-1. 环境自检：需要 git 和 Node.js ≥ 20，缺什么就自动安装
-  （macOS 用 Homebrew，Windows 用 winget），同时安装 cloudflared。
-2. 下载：把 https://github.com/XiaoDuoYa/codex-with-chatgpt 克隆到
-   ~/codex-with-chatgpt（已存在就 git pull 更新）。
-3. 构建：在该目录里执行 corepack pnpm install 和 corepack pnpm build。
-4. 安装 Skill：先确定 Codex home：如果设置了非空的 CODEX_HOME 就使用它，
-   否则使用 ~/.codex（Windows 默认为 %USERPROFILE%\.codex）。把仓库里的
-   skill/SKILL.md 复制到 <codex-home>/skills/codex-with-chatgpt/SKILL.md，
-   并把文件中 "The codex-with-chatgpt checkout lives at:" 那一行的路径改成实际克隆路径。
-5. 首次配置：按 SKILL.md 里的 first-time setup 流程执行
-  （运行 c2c setup，用内置浏览器打开 ChatGPT 配置连接器并输入配对码）。
-   全程只用内置浏览器，禁止打开任何第三方浏览器。
-6. 只有遇到需要我登录（ChatGPT / Cloudflare）、验证码或两步验证时才叫我，
-   而且一次只告诉我一个动作。
-7. 完成后给我看 ✓ 清单，并确认文件读取测试通过。我不懂 MCP、OAuth、
-   Tunnel、端口这些词，不要向我解释；出了问题先自己修。
+1. 检查 git、Node.js >= 20 和 corepack；缺少依赖时使用适合当前系统的包管理器安装。不要为了新版连接方式安装 cloudflared。
+2. 克隆或更新 https://github.com/louisje/codex-with-chatgpt 到 ~/codex-with-chatgpt；若目录已有其他内容或未提交修改，先检查并保护现有数据，不得强制覆盖。
+3. 在仓库中运行 corepack pnpm install 与 corepack pnpm build。
+4. 根据 CODEX_HOME（未设置时使用 ~/.codex；Windows 为 %USERPROFILE%\.codex）安装 skill/SKILL.md 至 <codex-home>/skills/codex-with-chatgpt/SKILL.md，并替换其中 checkout lives at 的路径为实际目录。阅读新版 Skill 的 Transport selection。
+5. 优先选择 Secure MCP Tunnel：检查 tunnel-client 是否已安装与正确授权；缺少时根据官方说明引导安装。检查机器上是否已有 C2C 的 Tunnel ID；有则复用，没有则请我创建/提供 OpenAI Tunnel ID，并在 ChatGPT 中完成一次 Tunnel Connector 授权。不要复用 terminal-mcp 等无关 Tunnel ID，也不要编造凭证。
+6. 使用 c2c mcp set-tunnel --tunnel-id <ID> 保存一次；对当前工作区执行 c2c start -w <workspace>，再执行 c2c doctor -w <workspace> --no-fix --json。通过后，在 ChatGPT 连接器实际调用 workspace_info，确认工作区身份。后续切换工作区时，先停止原工作区，再启动新工作区；无需每次新建 Connector。
+7. 如果已配置 Legacy Cloudflare 模式，保留现有设置；只有我明确选择旧版模式时，才按 Skill 的 Legacy 步骤使用 cloudflared、OAuth 和配对码。不要自动迁移、删除 Connector 或破坏运行中的其他 Tunnel。
+8. 只有需要登录、授权、Tunnel ID、验证码或额外权限时才请我操作，每次告诉我一个明确步骤。完成后列出安装和验证结果；遇到问题先自行诊断，不要输出任何密钥。
 ```
 
 **更新**：Skill 每天自动检查一次 GitHub，有新版本会自动更新并继续任务，
@@ -57,7 +48,8 @@ Agent（Codex），然后去倒杯咖啡：
 
 > **安装范围：** 本项目不会发布或安装 Codex 网页版 GPT、启动器或模型目录条目。
 > 安装内容是构建本仓库、把 `skill/SKILL.md` 安装为 Codex Skill，然后运行
-> `c2c setup` 配置 ChatGPT 连接器。网页版 GPT 或模型目录的问题请先查看
+> `c2c mcp set-tunnel` 与 `c2c start` 连接新版 Secure MCP Tunnel；
+> 原有 Cloudflare 用户仍可使用 `c2c setup`。网页版 GPT 或模型目录的问题请先查看
 > [故障排查](docs/troubleshooting.md)。
 
 说明书到此结束。你不需要知道 MCP、OAuth、Tunnel、端口、localhost 是什么——
@@ -67,7 +59,7 @@ Codex 会自动完成所有配置，你只会看到：
 Codex with ChatGPT
 
 ✓ 当前项目已识别
-✓ Workspace Bridge 已启动
+✓ Secure MCP Tunnel 已就绪
 ✓ 安全连接已建立
 ✓ ChatGPT 已连接
 ✓ 文件读取测试通过
@@ -75,11 +67,11 @@ Codex with ChatGPT
 Ready.
 ```
 
-唯一可能需要你动手的步骤：登录 ChatGPT（如果要用固定域名，再登录一次 Cloudflare）。**新仓库**还会请你在 ChatGPT 里建一次项目（合集）：名字用仓库名，记忆选「仅限项目记忆」。侧栏如果没有「项目」，把鼠标放在「聊天」上，点右边三个点，选「按项目整理」。之后对话都从合集页开，不用回首页。已经在用的仓库默认还是原来的一条长对话，除非你说要改成 Project。
+可能需要你动手的步骤：登录 ChatGPT、首次创建和授权 Tunnel ID，以及运行凭据授权；Cloudflare 登录仅适用于旧版模式。**新仓库**还会请你在 ChatGPT 里建一次项目（合集）：名字用仓库名，记忆选「仅限项目记忆」。侧栏如果没有「项目」，把鼠标放在「聊天」上，点右边三个点，选「按项目整理」。之后对话都从合集页开，不用回首页。已经在用的仓库默认还是原来的一条长对话，除非你说要改成 Project。
 
-### 可选的固定域名
+### 可选的固定域名（仅旧版 Cloudflare）
 
-默认公网地址是临时的，桥重启后会变。Codex 会删掉这个项目的 ChatGPT 插件再按新地址加回去。
+在旧版 Cloudflare 模式下，默认公网地址是临时的，桥重启后会变。Codex 会删掉这个项目的 ChatGPT 插件再按新地址加回去。
 
 如果你有 Cloudflare 账号，并且域名已经加在 Cloudflare 上，首次配置时（老用户则在下一次编码时问一次）会问你要不要用固定域名，例如 `c2c-<项目>.你的域名`。选是的话，浏览器里授权一次 Cloudflare 即可。之后重启一般不用再改插件。没有账号、不想用、登录失败：继续用临时地址，功能一样，只是修复更慢。
 
@@ -166,7 +158,7 @@ c2c status / doctor / pair / unpair / logs / stop
 ```
 src/
   bridge/     本机回环 HTTP 服务、端口自动恢复、管理 API
-  mcp/        9 个只读工具、无状态 Streamable HTTP
+  mcp/        10 个只读工具，支持 stdio Tunnel 与旧版 HTTP
   auth/       OAuth 2.1（PKCE、动态注册、refresh 轮换、吊销）
   pairing/    一次性配对码（CSPRNG、TTL、限速）
   workspace/  路径收敛、敏感文件策略、搜索、git
@@ -181,8 +173,7 @@ docs/         架构 / 协议 / 安全 / 故障排查
 
 ## 状态与声明
 
-V1。已端到端验证：Bridge、OAuth + 配对、公网隧道、ChatGPT 连接器配置、
-零操作首次配置体验。
+V1。Secure MCP Tunnel 已通过实际 ChatGPT Connector 完成 A → B → A 工作区切换验收。旧版 Bridge、OAuth 和 Cloudflare 流程保留；首次 Tunnel 授权仍需要用户参与。
 
 **非官方社区项目，与 OpenAI 无关联，未获其背书。**
 
