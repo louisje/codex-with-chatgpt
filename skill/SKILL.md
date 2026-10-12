@@ -270,11 +270,15 @@ that close the tab, hide the window, or stall on the settings page.
 
 ## Locations
 
-- The codex-with-chatgpt checkout lives at: `<ACTUAL_CHECKOUT_PATH>`
-  (installer/update MUST replace this line in the installed Skill with the user's actual checkout path.)
+- The Codex Skill directory `<codex-home>/skills/codex-with-chatgpt` should
+  be a **directory symlink** to `<checkout>/skill` (Windows may use a junction).
+  Resolve the installed Skill directory's physical path and take its parent
+  to locate the checkout. Default: `~/projects/codex-with-chatgpt`. If a user
+  chose a custom checkout, trust the symlink target instead of the default.
+  Do not edit the tracked SKILL.md to hardcode an absolute checkout path.
 - Codex home: let `<codex-home>` be a non-empty `CODEX_HOME` when set; otherwise
   use `~/.codex` (`%USERPROFILE%\.codex` on Windows).
-- CLI: let `<checkout>` mean the path on the previous line; run
+- CLI: let `<checkout>` mean that resolved checkout directory; run
   `node "<checkout>/bin/c2c.js" <command>` (or `c2c <command>` if globally linked).
   Prefer `--json` on commands that advertise it (not every subcommand does).
 - If the checkout has no `node_modules` or no `dist/`, first run
@@ -311,9 +315,11 @@ Inside the checkout directory (see Locations):
 
 1. `git pull --ff-only` (if it fails due to local edits: `git stash && git pull --ff-only`).
 2. `corepack pnpm install && corepack pnpm build`.
-3. Re-install the Skill: copy `skill/SKILL.md` to
-   `<codex-home>/skills/codex-with-chatgpt/SKILL.md`, then fix the "checkout lives at:"
-   line in the copy to the actual checkout path.
+3. Ensure `<codex-home>/skills/codex-with-chatgpt` remains a symlink to
+   `<checkout>/skill`; Git updates its target automatically. Never copy a
+   SKILL.md over the symlink or edit the checked-in file to replace a path.
+   If an old installation is a regular directory or points elsewhere, inspect
+   its contents and preserve user changes before converting it.
 4. Check the transport first. For Secure MCP Tunnel, run
    `c2c doctor -w <workspace> --no-fix --json` and use the shared workflow;
    do not run legacy `c2c restart` or change the active connector just to

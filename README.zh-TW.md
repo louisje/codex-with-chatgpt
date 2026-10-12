@@ -30,9 +30,9 @@ Codex with ChatGPT（C2C）讓 ChatGPT 透過**唯讀 MCP 工具**，按需檢�
 請幫我安裝並設定 Codex with ChatGPT，優先使用 Secure MCP Tunnel，由你完成所有可以自動執行的步驟：
 
 1. 檢查 git、Node.js >= 20 及 corepack；缺少依賴時，使用適合目前系統的套件管理器安裝。新版連線方式不需要安裝 cloudflared。
-2. Clone 或更新 https://github.com/louisje/codex-with-chatgpt 至 ~/codex-with-chatgpt；若目錄已有其他內容或未提交修改，先檢查並保護現有資料，不得強制覆寫。
+2. 先建立 ~/projects 目錄，再 Clone 或更新 https://github.com/louisje/codex-with-chatgpt 至 ~/projects/codex-with-chatgpt；若目錄已有其他內容或未提交修改，先檢查並保護現有資料，不得強制覆寫。
 3. 在專案目錄執行 corepack pnpm install 與 corepack pnpm build。
-4. 依 CODEX_HOME（未設定時為 ~/.codex；Windows 為 %USERPROFILE%\.codex）將 skill/SKILL.md 安裝至 <codex-home>/skills/codex-with-chatgpt/SKILL.md，並將 checkout lives at 所在行更新為實際專案路徑。先閱讀新版 Skill 的 Transport selection。
+4. 依 CODEX_HOME（未設定時為 ~/.codex；Windows 為 %USERPROFILE%\.codex），在 <codex-home>/skills/codex-with-chatgpt 建立指向專案 skill/ 目錄的符號連結（Windows 可使用目錄 junction）。如果目標已存在，先檢查，不可直接覆寫；也不要修改 repository 內的 SKILL.md。閱讀 Skill 的 Transport selection。
 5. 優先採用 Secure MCP Tunnel：確認 tunnel-client 已安裝並正確授權；若尚未安裝，依官方說明協助安裝。檢查本機是否已有 C2C Tunnel ID，有就沿用，沒有則請我建立或提供 OpenAI Tunnel ID，並在 ChatGPT 完成一次 Tunnel Connector 授權。不可挪用 terminal-mcp 等其他 Tunnel ID，也不可虛構憑證。
 6. 使用 c2c mcp set-tunnel --tunnel-id <ID> 儲存一次；在目前工作區執行 c2c start -w <workspace>，再執行 c2c doctor -w <workspace> --no-fix --json。確認成功後，實際透過 ChatGPT Connector 呼叫 workspace_info，驗證工作區身分。日後切換工作區時，先停止原工作區再啟動新工作區，不需重新建立 Connector。
 7. 若原本採用 Legacy Cloudflare，保留既有設定；只有我明確選擇舊版模式時，才依 Skill 的 Legacy 步驟使用 cloudflared、OAuth 與配對碼。不要自動遷移、刪除 Connector，或中斷其他運作中的 Tunnel。
@@ -46,7 +46,7 @@ Codex with ChatGPT（C2C）讓 ChatGPT 透過**唯讀 MCP 工具**，按需檢�
 
 1. 安裝 Git、Node.js 20 或以上版本與 Corepack；建置需要 `pnpm`（透過 Corepack 取得）。
 2. Clone [此 fork](https://github.com/louisje/codex-with-chatgpt) 並執行 `corepack pnpm install`、`corepack pnpm build`。
-3. 將 `skill/SKILL.md` 複製至 `<codex-home>/skills/codex-with-chatgpt/SKILL.md`，把其中 `The codex-with-chatgpt checkout lives at:` 的佔位路徑替換為真正的 checkout 路徑。
+3. 將 `<codex-home>/skills/codex-with-chatgpt` 符號連結至 `<checkout>/skill`（Windows 可改用目錄 junction），不需要複製或修改 `SKILL.md`。若該位置已有資料，先確認內容及備份，再決定是否替換。
 4. 依照 Skill 的 **Transport selection** 決定使用新版 Secure MCP Tunnel 或既有 Legacy Bridge；不要同時設定兩種模式來使用相同 Tunnel ID。
 5. 首次使用 Secure MCP Tunnel 時，建立 OpenAI Tunnel ID，安裝並授權 `tunnel-client`，在 ChatGPT 新增與該 ID 對應的 Tunnel Connector。這一步可能需要你操作介面；**請勿把 API key 貼進對話**。
 6. 在 C2C 專案目錄使用以下指令（將範例欄位換成實際資料）：

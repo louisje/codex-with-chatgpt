@@ -25,9 +25,9 @@ Agent（Codex），然后去倒杯咖啡：
 请帮我安装并配置 Codex with ChatGPT，优先使用 Secure MCP Tunnel，由你完成所有可自动执行的步骤：
 
 1. 检查 git、Node.js >= 20 和 corepack；缺少依赖时使用适合当前系统的包管理器安装。不要为了新版连接方式安装 cloudflared。
-2. 克隆或更新 https://github.com/louisje/codex-with-chatgpt 到 ~/codex-with-chatgpt；若目录已有其他内容或未提交修改，先检查并保护现有数据，不得强制覆盖。
+2. 先建立 ~/projects 目录，再克隆或更新 https://github.com/louisje/codex-with-chatgpt 到 ~/projects/codex-with-chatgpt；若目录已有其他内容或未提交修改，先检查并保护现有数据，不得强制覆盖。
 3. 在仓库中运行 corepack pnpm install 与 corepack pnpm build。
-4. 根据 CODEX_HOME（未设置时使用 ~/.codex；Windows 为 %USERPROFILE%\.codex）安装 skill/SKILL.md 至 <codex-home>/skills/codex-with-chatgpt/SKILL.md，并替换其中 checkout lives at 的路径为实际目录。阅读新版 Skill 的 Transport selection。
+4. 根据 CODEX_HOME（未设置时使用 ~/.codex；Windows 为 %USERPROFILE%\.codex）在 <codex-home>/skills/codex-with-chatgpt 建立指向仓库 skill/ 目录的符号链接（Windows 可用目录链接/junction）。若目标已存在，先检查，不能直接覆盖；不要修改仓库内的 SKILL.md。阅读 Skill 的 Transport selection。
 5. 优先选择 Secure MCP Tunnel：检查 tunnel-client 是否已安装与正确授权；缺少时根据官方说明引导安装。检查机器上是否已有 C2C 的 Tunnel ID；有则复用，没有则请我创建/提供 OpenAI Tunnel ID，并在 ChatGPT 中完成一次 Tunnel Connector 授权。不要复用 terminal-mcp 等无关 Tunnel ID，也不要编造凭证。
 6. 使用 c2c mcp set-tunnel --tunnel-id <ID> 保存一次；对当前工作区执行 c2c start -w <workspace>，再执行 c2c doctor -w <workspace> --no-fix --json。通过后，在 ChatGPT 连接器实际调用 workspace_info，确认工作区身份。后续切换工作区时，先停止原工作区，再启动新工作区；无需每次新建 Connector。
 7. 如果已配置 Legacy Cloudflare 模式，保留现有设置；只有我明确选择旧版模式时，才按 Skill 的 Legacy 步骤使用 cloudflared、OAuth 和配对码。不要自动迁移、删除 Connector 或破坏运行中的其他 Tunnel。
@@ -42,12 +42,12 @@ Agent（Codex），然后去倒杯咖啡：
 设 `<codex-home>` 为：如果 `CODEX_HOME` 已设置且非空，则使用 `CODEX_HOME`；
 否则使用 `~/.codex`（Windows 上默认为 `%USERPROFILE%\.codex`）。
 
-1. 安装 Codex Skill：把 `skill/` 复制到 `<codex-home>/skills/codex-with-chatgpt/`。
+1. 安装 Codex Skill：将 `<codex-home>/skills/codex-with-chatgpt` 链接到 `<checkout>/skill`，已有目录须先检查，不能直接覆盖。
 2. 对 Codex 说：**"使用 Codex with ChatGPT 完成首次配置。"**
 3. 之后正常使用：**"使用 Codex with ChatGPT，帮我实现 XXX。"**
 
 > **安装范围：** 本项目不会发布或安装 Codex 网页版 GPT、启动器或模型目录条目。
-> 安装内容是构建本仓库、把 `skill/SKILL.md` 安装为 Codex Skill，然后运行
+> 安装内容是构建本仓库、将 `<checkout>/skill` 符号链接为 Codex Skill，然后运行
 > `c2c mcp set-tunnel` 与 `c2c start` 连接新版 Secure MCP Tunnel；
 > 原有 Cloudflare 用户仍可使用 `c2c setup`。网页版 GPT 或模型目录的问题请先查看
 > [故障排查](docs/troubleshooting.md)。
