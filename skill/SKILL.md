@@ -5,7 +5,8 @@ description: >
   while Codex keeps full execution ownership. Use when the user says
   "使用 Codex with ChatGPT ..." / "Set up Codex with ChatGPT" / "用 ChatGPT 规划",
   when they ask to connect ChatGPT to the current workspace, disconnect it,
-  or run a task through the ChatGPT planning loop.
+  use the shared Secure MCP Tunnel across workspaces, or run a task through
+  the ChatGPT planning loop.
 ---
 
 # Codex with ChatGPT
@@ -14,11 +15,94 @@ ChatGPT thinks. Codex works.
 
 You (Codex) own execution: editing, shell, git, tests, recovery.
 ChatGPT owns high-level reasoning: understanding, planning, review, debug strategy.
-The C2C Bridge gives ChatGPT read-only MCP access to the current workspace, so
+The C2C MCP server gives ChatGPT read-only access to the current workspace
+through either the Secure MCP Tunnel or the legacy HTTP bridge, so
 control messages between you and ChatGPT stay tiny (< 1 KB) — ChatGPT pulls
 whatever data it needs by itself.
 
-**Secure MCP Tunnel opt-in:** When `c2c mcp set-tunnel --tunnel-id ...` has been configured on this machine, `c2c start`, `c2c stop` and `c2c doctor` manage the shared OpenAI Tunnel instead of the legacy Cloudflare bridge. The Tunnel ID is configured only once. Before starting in a different workspace, stop the previous workspace with `c2c stop`; C2C refuses to steal a running legacy profile or overwrite an active shared one. After startup, verify `workspace_info` from ChatGPT. Do not use legacy bridge/pairing/Cloudflare repair guidance for the shared tunnel transport. Existing ChatGPT conversation selection remains separate; it is not automatically migrated by this transport change.
+## Transport selection (MUST run before all connection workflows)
+
+The supported transports are **Secure MCP Tunnel** (one shared ChatGPT connector
+and Tunnel ID for multiple workspaces, one workspace active at a time) and
+**legacy Cloudflare HTTP bridge** (per-workspace connectors, OAuth and pairing).
+The command `c2c mcp set-tunnel --tunnel-id tunnel_...` configures the first mode
+**once per machine**. An existing C2C install that has not opted in stays on
+legacy behavior. Never infer the transport from a running `tunnel-client`
+process: other profiles, including `terminal-mcp`, may run independently.
+
+1. Determine the active mode without printing credentials. If the local state
+   directory contains `mcp-tunnels/c2c-shared.json` with a valid `tunnelId`,
+   the CLI uses **Secure MCP Tunnel**. Alternatively inspect the
+   `transport` field from `c2c doctor -w <workspace> --json --no-fix`:
+   `secure-mcp-tunnel` means shared mode. **Caution:** the legacy doctor has
+   repair logic, so always use `--no-fix` when only identifying the mode.
+2. In Secure MCP Tunnel mode, use only **Secure MCP Tunnel workflow** below
+   for connect, switch, health checks, repair and disconnect. Do **not** run
+   `c2c setup`, `c2c pair`, `c2c unpair`, `c2c tunnel choose/login`, Cloudflare
+   setup, browser OAuth pairing, connector deletion/recreation, or the legacy
+   `chatgptRepair` / `namedRepair` procedures. Those are NOT prerequisites.
+3. In legacy mode, follow the remaining legacy connection workflows as written;
+   they are retained for backwards compatibility. Never auto-migrate a legacy
+   user or create a new Tunnel ID without explicit configuration/consent.
+4. Shared tunnel connection and conversation ownership are **different**:
+   switching a Tunnel to workspace B changes what a shared connector reads,
+   not which ChatGPT conversation or Project should be opened. Verify
+   `workspace_info` after a switch and **never claim workspace B is connected**
+   while the connector still reports A.
+
+### Secure MCP Tunnel workflow (opt-in)
+
+**First-time activation:** The user must first supply/create the OpenAI Tunnel
+ID and authorize a Tunnel connector in ChatGPT once. Use
+`c2c mcp set-tunnel --tunnel-id <ID>` to save the ID (machine-wide), then
+`c2c start -w <workspace> --json`. ChatGPT's connector must be configured
+for **Tunnel** and the same ID, not as an HTTP Server URL with OAuth. Do not
+invent a Tunnel ID or silently repurpose the `terminal-mcp` ID. The CLI
+requires `tunnel-client` installed and its authorized runtime environment.
+When the connector already exists, reuse it; never create a new connector
+merely because the workspace or Codex conversation changed.
+
+**Connect or reuse:** `c2c start -w <workspace> --json` starts the managed
+shared runtime (or reuses it if it is already serving this workspace), then
+`c2c doctor -w <workspace> --no-fix --json` checks the selected workspace
+and loopback `/readyz`. Require `ok: true`,
+`transport: "secure-mcp-tunnel"` and `report.tunnel.ok: true` before using
+ChatGPT. Then call the **shared** connector's `workspace_info` and confirm
+that its workspace ID/name match the workspace being worked on. Do not
+confuse a green local doctor with end-to-end connector availability.
+
+**Switch workspace:** If A owns the active shared runtime, explicitly run
+`c2c stop -w <workspace-A>` first, then `c2c start -w <workspace-B>` and
+`c2c doctor -w <workspace-B> --no-fix --json`; verify the shared connector's
+`workspace_info` reports B. `c2c start` deliberately **refuses** to steal
+another workspace's active runtime. Never stop unrelated `tunnel-client`
+profiles (especially `terminal-mcp`) or a legacy C2C profile without
+confirming that the user intended to migrate it. Internal commands
+`c2c mcp switch` and `c2c mcp run --shared` are for advanced troubleshooting,
+not standard user steps.
+
+**Repair:** If `doctor` fails, inspect its report and the managed runtime's
+local log (`mcp-tunnels/c2c-shared.log`) without pasting credentials.
+If it is stopped, `c2c start` may restart it. If a different workspace owns
+it, stop that workspace deliberately before switching; do not override the
+lock. If a legacy profile is using the **same Tunnel ID**, stop only that
+specific conflicting C2C runtime after verifying its identity. If doctor
+passes but ChatGPT `workspace_info` fails, verify the selected ChatGPT Tunnel
+connector and runtime authentication; do **not** delete/recreate connectors,
+re-pair OAuth or switch to Cloudflare automatically. Ask only for a user action
+that is truly required (e.g., authorizing the connector).
+
+**Disconnect:** `c2c stop -w <workspace>` stops this workspace's managed
+runtime. It does **not** revoke the Tunnel credential, remove the saved Tunnel
+ID, delete the ChatGPT connector or erase conversation history. If the user
+explicitly wants to revoke access altogether, explain these separate steps
+before changing the remote connector or credentials.
+
+**Critical compatibility rule:** All remaining first-time setup, Connection
+choice, OAuth/pairing, browser connector setup, legacy doctor gates, named
+Cloudflare repair, reconnect-after-address-reclaim and `unpair` instructions
+in this Skill apply **only to legacy transport**. Shared mode must never
+follow them, even if a later section uses words like "ALWAYS" or "Workflow".
 
 **Golden rules**
 
@@ -27,9 +111,13 @@ whatever data it needs by itself.
    Speak in terms of "连接 ChatGPT / 安全连接 / 配对". The only exception is the
    **guided manual ChatGPT setup** below: expose only the exact settings
    field labels/values the user must enter, without explaining internals.
-3. The pairing code is the ONLY credential you may ever type into a browser.
+3. **Legacy OAuth only:** the pairing code is the ONLY credential you may
+   ever type into a browser. Secure MCP Tunnel has NO C2C pairing code.
    Never touch OAuth tokens, cookies, or session storage.
-4. If something fails, run `c2c doctor` and repair silently. Only involve the user
+4. If something fails, run `c2c doctor -w <workspace> --no-fix --json` first,
+   then follow the selected transport's repair workflow. The remaining
+   setup-mode and browser pairing rules in this item are **legacy only**.
+   Only involve the user
    for logins, CAPTCHA, 2FA, explicit consent screens, or **guided manual
    ChatGPT setup** below — and then give them ONE action.
    Before the first ChatGPT connection on this machine, `c2c prefs --json`:
@@ -71,16 +159,17 @@ whatever data it needs by itself.
      conversation opens a new chat from the Project collection page — never
      `goto` `https://chatgpt.com/` to create it, and never reuse another
      Codex conversation's chat URL just because `session.url` exists.
-   Each workspace also has exactly ONE ChatGPT connector. Do not create a
-   second connector for the same workspace. Other workspaces may have their
-   own connectors — never edit those.
+   In **legacy mode**, each workspace has exactly ONE separate connector.
+   In **Secure MCP Tunnel mode**, one shared connector is reused across
+   workspaces. Never create another connector just because the workspace
+   changes. Preserve each workspace's conversation / Project isolation.
 7. After first-time setup, never ask the user to approve writing C2C's local
    settings directory. Run `c2c sandbox-allow --json` (idempotent). If it fails
    with EPERM / Operation not permitted, request elevated permissions and retry
    ONCE. After `{ "alreadyAllowed": true }` or `{ "added": true }`, stay silent.
 8. ChatGPT pages: only the URLs in **In-app browser (ChatGPT)**. Never start
    from chatgpt.com and click through menus.
-9. **Doctor gate.** After `c2c doctor --json`, do not `goto` ChatGPT and do not
+9. **Legacy doctor gate (legacy transport only).** After `c2c doctor --json`, do not `goto` ChatGPT and do not
    send `[C2C]` until local is green — except the reconnect settings pages when
    `chatgptRepair.needed` is true. Not green:
    - `report.bridge.ok` is not true
@@ -187,7 +276,7 @@ that close the tab, hide the window, or stall on the settings page.
   use `~/.codex` (`%USERPROFILE%\.codex` on Windows).
 - CLI: let `<checkout>` mean the path on the previous line; run
   `node "<checkout>/bin/c2c.js" <command>` (or `c2c <command>` if globally linked).
-  All commands support `--json` for parsing.
+  Prefer `--json` on commands that advertise it (not every subcommand does).
 - If the checkout has no `node_modules` or no `dist/`, first run
   `corepack pnpm install && corepack pnpm build` inside it.
 - For commands that act on the user's project (`setup`, `doctor`, `session`,
@@ -195,7 +284,8 @@ that close the tab, hide the window, or stall on the settings page.
   `record`, `tunnel status`, `tunnel choose`), pass `-w <workspace root>`
   (the project the user is working on, NOT the c2c repo).
 - Do not add `-w` to machine-wide commands: `update-check`, `sandbox-allow`,
-  `prefs`, `tunnel login`. They still accept and ignore `-w`, so a leftover
+  `prefs`, `tunnel login`, `mcp set-tunnel`. Older commands may accept
+  and ignore `-w`, so a leftover
   flag must not fail the command.
 
 ## Daily update check
@@ -224,13 +314,17 @@ Inside the checkout directory (see Locations):
 3. Re-install the Skill: copy `skill/SKILL.md` to
    `<codex-home>/skills/codex-with-chatgpt/SKILL.md`, then fix the "checkout lives at:"
    line in the copy to the actual checkout path.
-4. `c2c sandbox-allow --json` (so existing installs pick up the sandbox allowlist),
-   then `c2c restart -w <workspace>` so the bridge runs the new code, then
-   `c2c update-check --force --json` to refresh the cache (should now report up to date).
+4. Check the transport first. For Secure MCP Tunnel, run
+   `c2c doctor -w <workspace> --no-fix --json` and use the shared workflow;
+   do not run legacy `c2c restart` or change the active connector just to
+   update a Skill. An existing healthy runtime can continue until the next
+   normal restart. For legacy bridge installs, run
+   `c2c sandbox-allow --json` and `c2c restart -w <workspace>`.
+   Then `c2c update-check --force --json` to refresh the cache.
 5. Tell the user "✓ 已更新到最新版本" — then resume whatever task triggered this.
    (The updated SKILL.md takes effect from the next Codex session; that's expected.)
 
-## Connection choice (once per workspace)
+## Legacy connection choice (once per workspace; Cloudflare only)
 
 Ask this **before** the public address exists (`c2c setup` / first `doctor --fix`
 that starts a tunnel). Do not mention tunnels, wrangler, DNS, or hostnames.
@@ -252,13 +346,13 @@ Speak only of 临时地址 / 固定域名 / 登录 Cloudflare.
 4. Never put connection credentials in the project. The CLI stores them in
    the C2C state directory.
 
-## Workflow: first-time setup（"使用 Codex with ChatGPT 完成首次配置"）
+## Legacy workflow: first-time setup（"使用 Codex with ChatGPT 完成首次配置"）
 
 1. Detect prerequisites yourself: `node --version` (>= 20), and check `cloudflared`.
    - If cloudflared is missing on macOS run `brew install cloudflared`; on Windows use
      `winget install Cloudflare.cloudflared`. Do this yourself; don't ask.
 2. If the c2c repo has no `node_modules`, run `pnpm install && pnpm build` in it.
-3. Run `c2c sandbox-allow --json`, then **Connection choice**, then
+3. Run `c2c sandbox-allow --json`, then **Legacy connection choice**, then
    `c2c setup -w <workspace> --json`.
    `sandbox-allow` edits Codex `config.toml` only — it adds C2C's state directory
    to `[sandbox_workspace_write].writable_roots` so later chats can write logs
@@ -418,7 +512,9 @@ One ChatGPT Project per workspace. Mapping:
 2. Same workspace, a **new** Codex conversation → new ChatGPT chat from the
    collection page (`conversation.projectUrl`). Ignore `session.url` unless
    you already saved it earlier in THIS Codex thread.
-3. Different workspace → different Project and different connector.
+3. Different workspace → different Project. Legacy uses different connectors;
+   Secure MCP Tunnel reuses the SAME connector, but confirms `workspace_info`
+   matches the currently selected workspace before working.
 
 **Open a chat in this Codex thread**
 
@@ -520,8 +616,11 @@ Do not invent `STATE: RESUME`. If the original chat is gone, send HANDOFF.
 All control messages start with `[C2C]`. Keep Codex→ChatGPT messages under 1 KB.
 ChatGPT's replies are expected to be substantive (see step 3). Docs: `docs/protocol.md`.
 
-0. `c2c tunnel status -w <workspace> --json`. If `needsChoice`, follow
-   **Connection choice** first (existing installs: ask once, then remember).
+0. **Secure MCP Tunnel:** follow Transport selection and the Secure MCP
+   Tunnel workflow for `start`, `doctor` and workspace identity verification;
+   skip the remainder of step 0. **Legacy only:**
+   `c2c tunnel status -w <workspace> --json`. If `needsChoice`, follow
+   **Legacy connection choice** first (existing installs: ask once, then remember).
    Then `c2c doctor -w <workspace> --json` (auto-repairs). **Doctor gate:** if local
    is not green, do not open ChatGPT and do not send INIT. If
    `namedRepair.needed` is true, tell the user `namedRepair.userMessage`, run
@@ -662,7 +761,7 @@ When the user asks ChatGPT web to generate an image or video:
    escapes, and never overwrites an existing file. Include the imported path in
    EXECUTED/review.
 
-## Workflow: disconnect（"断开 ChatGPT"）
+## Legacy workflow: disconnect（"断开 ChatGPT"）
 
 1. `c2c unpair -w <workspace>` (revokes all tokens immediately).
 2. Optionally remove the connector on the same iab tab via
@@ -670,7 +769,7 @@ When the user asks ChatGPT web to generate an image or video:
    this workspace's `connectorName`.
 3. Tell the user: "已断开 ChatGPT 对该项目的访问。"
 
-## Workflow: reconnect after address reclaim（全关掉以后地址失效）
+## Legacy workflow: reconnect after address reclaim（全关掉以后地址失效）
 
 This is the normal case when the user quit Codex / the terminal / the machine:
 the previous public address is gone. Doctor already started a new one.
@@ -726,7 +825,7 @@ the previous public address is gone. Doctor already started a new one.
    the wrong connector, open 项目设置 and confirm 指令 still names
    `connectorName` (never paste the new public address).
 
-## Workflow: repair（anything looks broken）
+## Legacy workflow: repair（anything looks broken）
 
 1. `c2c doctor -w <workspace> --json`. Doctor gate: do not open ChatGPT / send
    `[C2C]` until local is green, except reconnect settings pages.
@@ -737,7 +836,7 @@ the previous public address is gone. Doctor already started a new one.
 4. Otherwise apply the recovery map. Only involve the user for login / 2FA /
    CAPTCHA — one action.
 
-## Recovery map
+## Legacy recovery map (Cloudflare/OAuth only)
 
 | Symptom | Action |
 | --- | --- |
