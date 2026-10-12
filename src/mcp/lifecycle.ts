@@ -94,6 +94,24 @@ export async function selectSharedWorkspace(workspace: Workspace, tunnelId: stri
   });
 }
 
+/** Probe the tunnel-client readiness endpoint written by its ephemeral health listener. */
+export async function sharedReadiness(timeoutMs = 1000): Promise<{ ready: boolean; detail: string }> {
+  const file = path.join(sharedPaths().directory, "c2c-shared-health.url");
+  if (!fs.existsSync(file)) return { ready: false, detail: "Tunnel health endpoint has not been published" };
+  const base = fs.readFileSync(file, "utf8").trim();
+  let url: URL;
+  try { url = new URL(base); } catch { return { ready: false, detail: "Invalid tunnel health endpoint" }; }
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+    return { ready: false, detail: "Tunnel health endpoint is not loopback HTTP" };
+  }
+  try {
+    const response = await fetch(new URL("/readyz", url), { signal: AbortSignal.timeout(timeoutMs) });
+    return { ready: response.ok, detail: `HTTP ${response.status}` };
+  } catch (error) {
+    return { ready: false, detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function startSharedWorkspace(root: string): Promise<{ workspaceId: string; running: boolean }> {
   return withLifecycleLock(() => startSharedWorkspaceLocked(root));
 }
@@ -104,13 +122,18 @@ async function startSharedWorkspaceLocked(root: string): Promise<{ workspaceId: 
   const workspace = new Workspace(root);
   const state = sharedStatus();
   if (state.running) {
-    if (state.workspaceId === workspace.id) return { workspaceId: workspace.id, running: true };
+    if (state.workspaceId === workspace.id) {
+      const readiness = await sharedReadiness();
+      if (!readiness.ready) throw new Error(`Shared tunnel process exists but is not ready: ${readiness.detail}`);
+      return { workspaceId: workspace.id, running: true };
+    }
     throw new Error(`Shared tunnel is active for ${state.workspaceRoot}; run c2c stop there before switching.`);
   }
   await selectSharedWorkspace(workspace, tunnelId);
   assertSharedIdle();
   const { directory, lock } = sharedPaths();
   const entry = fileURLToPath(new URL("../../bin/c2c.js", import.meta.url));
+  fs.rmSync(path.join(directory, "c2c-shared-health.url"), { force: true });
   const log = fs.openSync(path.join(directory, "c2c-shared.log"), "a", 0o600);
   try {
     const child = spawn(process.execPath, [entry, "mcp", "run", "--shared", "--workspace", workspace.root], {
@@ -120,10 +143,16 @@ async function startSharedWorkspaceLocked(root: string): Promise<{ workspaceId: 
     // The child acquires the lock before running tunnel-client. Wait for that handshake.
     for (let n = 0; n < 40; n++) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      if (fs.existsSync(lock) && sharedStatus().running) return { workspaceId: workspace.id, running: true };
+      if (fs.existsSync(lock) && sharedStatus().running) {
+        const readiness = await sharedReadiness(250);
+        if (readiness.ready) return { workspaceId: workspace.id, running: true };
+      }
       try { process.kill(child.pid!, 0); } catch { break; }
     }
-    throw new Error("Shared tunnel did not acquire its runtime lock; inspect c2c-shared.log.");
+    // A child may have acquired its lock but failed before opening the health endpoint.
+    // Clean up only the child we launched; never stop another workspace's runtime.
+    if (sharedStatus().pid === child.pid) child.kill("SIGTERM");
+    throw new Error("Shared tunnel did not become ready; inspect c2c-shared.log.");
   } finally { fs.closeSync(log); }
 }
 

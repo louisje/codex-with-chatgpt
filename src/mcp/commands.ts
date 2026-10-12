@@ -149,6 +149,7 @@ export function registerMcpCommands(program: Command): void {
           if (workspace.id !== selected[0]) throw new Error("Shared workspace identity changed; switch again.");
           if (opts.workspace && new Workspace(path.resolve(opts.workspace)).id !== workspace.id) throw new Error("Requested workspace does not match shared tunnel selection.");
           const args = [action, "--profile", "c2c-shared", "--profile-dir", directory];
+          if (action === "run") args.push("--health.url-file", path.join(directory, "c2c-shared-health.url"));
           if (action === "run") {
             const tunnelId = configuredTunnelId();
             if (tunnelId) assertNoLegacyConflict(tunnelId);

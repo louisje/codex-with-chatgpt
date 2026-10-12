@@ -82,3 +82,12 @@ confirmed from ChatGPT itself, not only by local CLI status. A separate running
 `terminal-mcp` tunnel using its own Tunnel ID remained online throughout.
 Starting an unrelated workspace without stopping the active workspace was
 rejected, while re-running `c2c start` for the active workspace was idempotent.
+
+### Readiness hardening (after initial migration)
+
+New managed runtimes pass `--health.url-file` to `tunnel-client`, with a loopback
+health listener. `c2c start` now waits for `GET /readyz` to return HTTP success,
+not merely for the runtime PID lock to appear. If startup does not become ready,
+C2C signals only its own just-spawned wrapper and reports an error. An already
+running instance started with older code may not have a health URL file until
+it is restarted; this change does not forcibly restart existing connections.

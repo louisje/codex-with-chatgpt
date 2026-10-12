@@ -36,3 +36,6 @@
 - [x] 真正 Tunnel ID 重連與 ChatGPT `workspace_info` A → B → A 驗收成功（2026-10-12）；已明確停止舊版 C2C profile，主用 terminal-mcp 未中斷。
 
 - [x] 已驗證 shared runtime 啟動時，同 workspace `c2c start` 可重用、其他 workspace `c2c start` 會拒絕，且不改變目前 C2C 連線。
+
+- [x] Managed runtime 新增 `--health.url-file` 與 loopback `/readyz` 啟動檢查；新增 ready／missing／non-loopback 單元測試。
+- [x] 正常重啟真實 `c2c-shared`，動態 health URL `/readyz` 回覆 ready、ChatGPT `workspace_info` 仍正確，terminal-mcp 未中斷（2026-10-12）。

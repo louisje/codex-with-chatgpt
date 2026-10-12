@@ -60,7 +60,7 @@ import { appendExecutionRecord } from "../execution/records.js";
 import { saveExecutionOutput } from "../execution/output.js";
 import { importMediaAsset } from "../media/import.js";
 import { registerMcpCommands } from "../mcp/commands.js";
-import { configuredTunnelId, sharedStatus, startSharedWorkspace, stopSharedWorkspace } from "../mcp/lifecycle.js";
+import { configuredTunnelId, sharedStatus, sharedReadiness, startSharedWorkspace, stopSharedWorkspace } from "../mcp/lifecycle.js";
 
 const program = new Command();
 registerMcpCommands(program);
@@ -448,11 +448,13 @@ program
       const state = sharedStatus();
       const workspace = new Workspace(root);
       const matching = state.running && state.workspaceId === workspace.id;
-      const report = { tunnel: { ok: matching, detail: state.running ? `active workspace: ${state.workspaceRoot}` : "not running" } };
-      if (opts.json) say(JSON.stringify({ ok: matching, transport: "secure-mcp-tunnel", report }));
-      else if (matching) check("Secure MCP Tunnel 已啟動，workspace 相符");
+      const readiness = matching ? await sharedReadiness() : { ready: false, detail: "workspace mismatch or not running" };
+      const healthy = matching && readiness.ready;
+      const report = { tunnel: { ok: healthy, detail: state.running ? `active workspace: ${state.workspaceRoot}; readiness: ${readiness.detail}` : "not running" } };
+      if (opts.json) say(JSON.stringify({ ok: healthy, transport: "secure-mcp-tunnel", report }));
+      else if (healthy) check("Secure MCP Tunnel 已啟動，workspace 相符");
       else cross(`Secure MCP Tunnel 未連接目前 workspace（${report.tunnel.detail}）`);
-      if (!matching) process.exitCode = 1;
+      if (!healthy) process.exitCode = 1;
       return;
     }
     const report: Record<string, { ok: boolean; detail?: string }> = {};

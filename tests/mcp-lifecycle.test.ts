@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { configuredTunnelId, sharedStatus, assertNoLegacyConflict, withLifecycleLock } from "../src/mcp/lifecycle.js";
+import http from "node:http";
+import { configuredTunnelId, sharedStatus, assertNoLegacyConflict, withLifecycleLock, sharedReadiness } from "../src/mcp/lifecycle.js";
 import { sharedPaths } from "../src/mcp/commands.js";
 
 const previous = process.env.C2C_STATE_DIR;
@@ -87,5 +88,27 @@ describe("lifecycle failure recovery", () => {
     const { assertSharedIdle } = await import("../src/mcp/commands.js");
     expect(assertSharedIdle).not.toThrow();
     expect(fs.existsSync(sharedPaths().lock)).toBe(false);
+  });
+});
+
+
+describe("tunnel readiness", () => {
+  it("reports missing health endpoint as not ready", async () => {
+    isolate();
+    await expect(sharedReadiness()).resolves.toMatchObject({ ready: false });
+  });
+
+  it("checks a loopback readiness endpoint", async () => {
+    isolate();
+    const server = http.createServer((_req, res) => { res.writeHead(200); res.end("ready"); });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("Missing server address");
+      fs.writeFileSync(path.join(sharedPaths().directory, "c2c-shared-health.url"), `http://127.0.0.1:${address.port}`);
+      await expect(sharedReadiness()).resolves.toMatchObject({ ready: true, detail: "HTTP 200" });
+      fs.writeFileSync(path.join(sharedPaths().directory, "c2c-shared-health.url"), "http://example.com:1234");
+      await expect(sharedReadiness()).resolves.toMatchObject({ ready: false });
+    } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
   });
 });
